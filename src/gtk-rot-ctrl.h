@@ -45,6 +45,7 @@ struct _gtk_rot_ctrl {
     GtkWidget      *LockBut;
     GtkWidget      *MonitorCheckBox;
     GtkWidget      *track;
+    GtkWidget      *home;
     GtkWidget      *cycle_spin;      /*!< Update timer cycle */
     GtkWidget      *thld_spin;       /*!< Threshold spin */
 
