@@ -43,6 +43,8 @@ static GtkWidget *maxaz;
 static GtkWidget *minel;
 static GtkWidget *maxel;
 static GtkWidget *azstoppos;
+static GtkWidget *homeaz;
+static GtkWidget *homeel;
 
 /* Update widgets from the currently selected row in the treeview */
 static void update_widgets(rotor_conf_t * conf)
@@ -67,6 +69,8 @@ static void update_widgets(rotor_conf_t * conf)
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(maxaz), conf->maxaz);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(minel), conf->minel);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(maxel), conf->maxel);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeel), conf->homeel);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeaz), conf->homeaz);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(azstoppos), conf->azstoppos);
 }
 
@@ -81,6 +85,8 @@ static void clear_widgets()
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(maxaz), 360);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(minel), 0);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(maxel), 90);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeel), 0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeaz), 0);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(azstoppos), 0);
 }
 
@@ -292,6 +298,28 @@ static GtkWidget *create_editor_widgets(rotor_conf_t * conf)
                                   "\342\206\222 +180\302\260 rotor is -180\302\260."));
     gtk_grid_attach(GTK_GRID(table), azstoppos, 3, 7, 1, 1);
 
+    gtk_grid_attach(GTK_GRID(table),
+                    gtk_separator_new(GTK_ORIENTATION_HORIZONTAL),
+                    0, 8, 4, 1);
+
+    label = gtk_label_new(_(" Home Az"));
+    g_object_set(label, "xalign", 1.0, "yalign", 0.5, NULL);
+    gtk_grid_attach(GTK_GRID(table), label, 0, 10, 1, 1);
+    homeaz = gtk_spin_button_new_with_range(-10, 180, 1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeaz), 0);
+    gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(homeaz), TRUE);
+    gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(homeaz), FALSE);
+    gtk_grid_attach(GTK_GRID(table), homeaz, 1, 10, 1, 1);
+
+    label = gtk_label_new(_(" Home El"));
+    g_object_set(label, "xalign", 1.0, "yalign", 0.5, NULL);
+    gtk_grid_attach(GTK_GRID(table), label, 2, 10, 1, 1);
+    homeel = gtk_spin_button_new_with_range(-10, 180, 1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(homeel), 0);
+    gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(homeel), TRUE);
+    gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(homeel), FALSE);
+    gtk_grid_attach(GTK_GRID(table), homeel, 3, 10, 1, 1);
+
     if (conf->name != NULL)
         update_widgets(conf);
 
@@ -326,6 +354,10 @@ static gboolean apply_changes(rotor_conf_t * conf)
     conf->maxaz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(maxaz));
     conf->minel = gtk_spin_button_get_value(GTK_SPIN_BUTTON(minel));
     conf->maxel = gtk_spin_button_get_value(GTK_SPIN_BUTTON(maxel));
+
+    /* Home az and el values */
+    conf->homeel = gtk_spin_button_get_value(GTK_SPIN_BUTTON(homeel));
+    conf->homeaz = gtk_spin_button_get_value(GTK_SPIN_BUTTON(homeaz));
 
     /* az stop position */
     conf->azstoppos = gtk_spin_button_get_value(GTK_SPIN_BUTTON(azstoppos));

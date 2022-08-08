@@ -51,6 +51,8 @@ typedef struct {
     gdouble         maxel;      /*!< Upper elevation limit */
     gdouble         azstoppos;  /*!< absolute position of rotation stops; normally = minaz */
     gdouble         threshold;  /*!< Angle difference that triggers new motion command */
+    gdouble         homeaz;     /*!< Home azimuth value */
+    gdouble         homeel;     /*!< Home elevation value */
 } rotor_conf_t;
 
 

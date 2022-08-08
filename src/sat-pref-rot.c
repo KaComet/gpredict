@@ -39,16 +39,7 @@ static GtkWidget *editbutton;
 static GtkWidget *delbutton;
 static GtkWidget *rotlist;
 
-
-static void add_cb(GtkWidget * button, gpointer data)
-{
-    GtkTreeIter     item;       /* new item added to the list store */
-    GtkListStore   *liststore;
-
-    (void)button;
-    (void)data;
-
-    rotor_conf_t    conf = {
+const rotor_conf_t EMPTY_ROTOR_CONFIG = {
         .name = NULL,
         .host = NULL,
         .port = 4533,
@@ -58,7 +49,20 @@ static void add_cb(GtkWidget * button, gpointer data)
         .maxel = 90,
         .aztype = ROT_AZ_TYPE_360,
         .azstoppos = 0,
-    };
+        .homeaz = 0,
+        .homeel = 0,
+};
+
+
+static void add_cb(GtkWidget * button, gpointer data)
+{
+    GtkTreeIter     item;       /* new item added to the list store */
+    GtkListStore   *liststore;
+
+    (void)button;
+    (void)data;
+
+    rotor_conf_t conf = EMPTY_ROTOR_CONFIG;
 
     /* run rot conf editor */
     sat_pref_rot_editor_run(&conf);
@@ -78,7 +82,9 @@ static void add_cb(GtkWidget * button, gpointer data)
                            ROT_LIST_COL_MINEL, conf.minel,
                            ROT_LIST_COL_MAXEL, conf.maxel,
                            ROT_LIST_COL_AZTYPE, conf.aztype,
-                           ROT_LIST_COL_AZSTOPPOS, conf.azstoppos, -1);
+                           ROT_LIST_COL_AZSTOPPOS, conf.azstoppos,
+                           ROT_LIST_COL_HOMEAZ, conf.homeaz,
+                           ROT_LIST_COL_HOMEEL, conf.homeel, -1);
 
         g_free(conf.name);
 
@@ -97,17 +103,7 @@ static void edit_cb(GtkWidget * button, gpointer data)
     (void)button;               /* avoid unused parameter compiler warning */
     (void)data;                 /* avoid unused parameter compiler warning */
 
-    rotor_conf_t    conf = {
-        .name = NULL,
-        .host = NULL,
-        .port = 4533,
-        .minaz = 0,
-        .maxaz = 360,
-        .minel = 0,
-        .maxel = 90,
-        .aztype = ROT_AZ_TYPE_360,
-        .azstoppos = 0,         //used in the "new rotator" dialog
-    };
+    rotor_conf_t conf = EMPTY_ROTOR_CONFIG;
 
     /* If there are no entries, we have a bug since the button should 
        have been disabled. */
@@ -137,7 +133,9 @@ static void edit_cb(GtkWidget * button, gpointer data)
                            ROT_LIST_COL_MINEL, &conf.minel,
                            ROT_LIST_COL_MAXEL, &conf.maxel,
                            ROT_LIST_COL_AZTYPE, &conf.aztype,
-                           ROT_LIST_COL_AZSTOPPOS, &conf.azstoppos, -1);
+                           ROT_LIST_COL_AZSTOPPOS, &conf.azstoppos,
+                           ROT_LIST_COL_HOMEAZ, &conf.homeaz,
+                           ROT_LIST_COL_HOMEEL, &conf.homeel, -1);
     }
     else
     {
@@ -172,7 +170,9 @@ static void edit_cb(GtkWidget * button, gpointer data)
                            ROT_LIST_COL_MINEL, conf.minel,
                            ROT_LIST_COL_MAXEL, conf.maxel,
                            ROT_LIST_COL_AZTYPE, conf.aztype,
-                           ROT_LIST_COL_AZSTOPPOS, conf.azstoppos, -1);
+                           ROT_LIST_COL_AZSTOPPOS, conf.azstoppos,
+                           ROT_LIST_COL_HOMEAZ, conf.homeaz,
+                           ROT_LIST_COL_HOMEEL, conf.homeel, -1);
     }
 
     /* clean up memory */
@@ -258,7 +258,9 @@ static GtkTreeModel *create_and_fill_model()
                                    G_TYPE_DOUBLE,       // Min El
                                    G_TYPE_DOUBLE,       // Max El
                                    G_TYPE_INT,  // Az type
-                                   G_TYPE_DOUBLE        // Az Stop Position
+                                   G_TYPE_DOUBLE,       // Az Stop Position
+                                   G_TYPE_DOUBLE,       // Home azimuth value
+                                   G_TYPE_DOUBLE        // Home elevation value
         );
     gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(liststore),
                                          ROT_LIST_COL_NAME,
@@ -291,6 +293,8 @@ static GtkTreeModel *create_and_fill_model()
                                        ROT_LIST_COL_MAXEL, conf.maxel,
                                        ROT_LIST_COL_AZTYPE, conf.aztype,
                                        ROT_LIST_COL_AZSTOPPOS, conf.azstoppos,
+                                       ROT_LIST_COL_HOMEAZ, conf.homeaz,
+                                       ROT_LIST_COL_HOMEEL, conf.homeel,
                                        -1);
 
                     sat_log_log(SAT_LOG_LEVEL_DEBUG,
@@ -508,6 +512,27 @@ static void create_rot_list()
                                             (ROT_LIST_COL_MAXEL), NULL);
     gtk_tree_view_insert_column(GTK_TREE_VIEW(rotlist), column, -1);
 
+    /* Home Az and el values */
+    renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes(_("Home Az"), renderer,
+                                                      "text",
+                                                      ROT_LIST_COL_HOMEAZ,
+                                                      NULL);
+    gtk_tree_view_column_set_cell_data_func(column, renderer, render_angle,
+                                            GUINT_TO_POINTER
+                                            (ROT_LIST_COL_HOMEAZ), NULL);
+    gtk_tree_view_insert_column(GTK_TREE_VIEW(rotlist), column, -1);
+
+    renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes(_("Home El"), renderer,
+                                                      "text",
+                                                      ROT_LIST_COL_HOMEEL,
+                                                      NULL);
+    gtk_tree_view_column_set_cell_data_func(column, renderer, render_angle,
+                                            GUINT_TO_POINTER
+                                            (ROT_LIST_COL_HOMEEL), NULL);
+    gtk_tree_view_insert_column(GTK_TREE_VIEW(rotlist), column, -1);
+
     /* Az type */
     renderer = gtk_cell_renderer_text_new();
     column =
@@ -565,17 +590,7 @@ void sat_pref_rot_ok()
     GtkTreeModel   *model;
     guint           i, n;
 
-    rotor_conf_t    conf = {
-        .name = NULL,
-        .host = NULL,
-        .port = 4533,
-        .minaz = 0,
-        .maxaz = 360,
-        .minel = 0,
-        .maxel = 90,
-        .aztype = ROT_AZ_TYPE_360,
-        .azstoppos = 0,
-    };
+    rotor_conf_t conf = EMPTY_ROTOR_CONFIG;
 
 
     /* delete all .rot files */
@@ -621,7 +636,9 @@ void sat_pref_rot_ok()
                                ROT_LIST_COL_MINEL, &conf.minel,
                                ROT_LIST_COL_MAXEL, &conf.maxel,
                                ROT_LIST_COL_AZTYPE, &conf.aztype,
-                               ROT_LIST_COL_AZSTOPPOS, &conf.azstoppos, -1);
+                               ROT_LIST_COL_AZSTOPPOS, &conf.azstoppos,
+                               ROT_LIST_COL_HOMEAZ, &conf.homeaz,
+                               ROT_LIST_COL_HOMEEL, &conf.homeel, -1);
             rotor_conf_save(&conf);
 
             /* free conf buffer */

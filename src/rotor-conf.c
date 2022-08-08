@@ -45,6 +45,8 @@
 #define KEY_MAXEL       "MaxEl"
 #define KEY_AZSTOPPOS   "AzStopPos"
 #define KEY_THLD        "Threshold"
+#define KEY_HOMEAZ      "HomeAZ"
+#define KEY_HOMEEL      "HomeEL"
 
 #define DEFAULT_CYCLE_MS    1000
 #define DEFAULT_THLD_DEG    5.0
@@ -206,6 +208,26 @@ gboolean rotor_conf_read(rotor_conf_t * conf)
         conf->maxel = 90.0;
     }
 
+    conf->homeaz = g_key_file_get_double(cfg, GROUP, KEY_HOMEAZ, &error);
+    if (error != NULL)
+    {
+        sat_log_log(SAT_LOG_LEVEL_INFO,
+                    _("%s: HomeAZ not defined for %s. Assuming 0\302\260."),
+                    __func__, conf->name);
+        g_clear_error(&error);
+        conf->homeaz = 0.0;
+    }
+
+    conf->homeel = g_key_file_get_double(cfg, GROUP, KEY_HOMEEL, &error);
+    if (error != NULL)
+    {
+        sat_log_log(SAT_LOG_LEVEL_INFO,
+                    _("%s: HomeEl not defined for %s. Assuming 0\302\260."),
+                    __func__, conf->name);
+        g_clear_error(&error);
+        conf->homeel = 0.0;
+    }
+
     conf->azstoppos = g_key_file_get_double(cfg, GROUP, KEY_AZSTOPPOS, &error);
     if (error != NULL)
     {
@@ -249,6 +271,8 @@ void rotor_conf_save(rotor_conf_t * conf)
     g_key_file_set_double(cfg, GROUP, KEY_MINEL, conf->minel);
     g_key_file_set_double(cfg, GROUP, KEY_MAXEL, conf->maxel);
     g_key_file_set_double(cfg, GROUP, KEY_AZSTOPPOS, conf->azstoppos);
+    g_key_file_set_double(cfg, GROUP, KEY_HOMEAZ, conf->homeaz);
+    g_key_file_set_double(cfg, GROUP, KEY_HOMEEL, conf->homeel);
 
     if (conf->cycle == DEFAULT_CYCLE_MS)
         g_key_file_remove_key(cfg, GROUP, KEY_CYCLE, NULL);

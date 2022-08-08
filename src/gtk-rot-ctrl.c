@@ -711,14 +711,43 @@ static GtkWidget *create_el_widgets(GtkRotCtrl * ctrl)
 static void track_toggle_cb(GtkToggleButton * button, gpointer data)
 {
     GtkRotCtrl     *ctrl = GTK_ROT_CTRL(data);
-    gboolean        locked;
+    gboolean        track;
 
-    locked = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(ctrl->LockBut));
+    track = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(ctrl->track));
     ctrl->tracking = gtk_toggle_button_get_active(button);
+
     gtk_widget_set_sensitive(ctrl->MonitorCheckBox,
-                             !(ctrl->tracking || locked));
+                             !(ctrl->tracking || track));
     gtk_widget_set_sensitive(ctrl->AzSet, !ctrl->tracking);
     gtk_widget_set_sensitive(ctrl->ElSet, !ctrl->tracking);
+}
+
+/**
+ * Home button pushed callback
+ *
+ * \param button Pointer to the GtkButton button.
+ * \param data Pointer to the GtkRotCtrl widget.
+ */
+static void home_pushed_cb(GtkButton * button, gpointer data)
+{
+    GtkRotCtrl     *ctrl = GTK_ROT_CTRL(data);
+
+    if (ctrl->tracking) {
+            ctrl->tracking = FALSE;
+            gtk_toggle_button_set_active((GtkToggleButton *)ctrl->track, FALSE);
+    }
+
+    sat_log_log(SAT_LOG_LEVEL_ERROR,
+                _
+                        ("%s: AZ(%lf) EL(%lf)"),
+                __func__, ctrl->conf->homeaz, ctrl->conf->homeel);
+
+    gtk_rot_knob_set_value(GTK_ROT_KNOB(ctrl->ElSet), ctrl->conf->homeel);
+    gtk_rot_knob_set_value(GTK_ROT_KNOB(ctrl->AzSet), ctrl->conf->homeaz);
+
+    gtk_widget_set_sensitive(ctrl->MonitorCheckBox, TRUE);
+    gtk_widget_set_sensitive(ctrl->AzSet, TRUE);
+    gtk_widget_set_sensitive(ctrl->ElSet, TRUE);
 }
 
 /**
@@ -1103,6 +1132,11 @@ static void rot_selected_cb(GtkComboBox * box, gpointer data)
         gtk_rot_knob_set_range(GTK_ROT_KNOB(ctrl->ElSet), ctrl->conf->minel,
                                ctrl->conf->maxel);
 
+        if (!ctrl->tracking) {
+            gtk_rot_knob_set_value(GTK_ROT_KNOB(ctrl->AzSet), ctrl->conf->homeaz);
+            gtk_rot_knob_set_value(GTK_ROT_KNOB(ctrl->ElSet), ctrl->conf->homeel);
+        }
+
         /* Update flipped when changing rotor if there is a plot */
         set_flipped_pass(ctrl);
     }
@@ -1133,6 +1167,7 @@ static void rot_monitor_cb(GtkCheckButton * button, gpointer data)
     gtk_widget_set_sensitive(ctrl->AzSet, !ctrl->monitor);
     gtk_widget_set_sensitive(ctrl->ElSet, !ctrl->monitor);
     gtk_widget_set_sensitive(ctrl->track, !ctrl->monitor);
+    gtk_widget_set_sensitive(ctrl->home, !ctrl->monitor);
 }
 
 /**
@@ -1293,6 +1328,15 @@ static GtkWidget *create_target_widgets(GtkRotCtrl * ctrl)
                                 ("Track the satellite when it is within range"));
     gtk_grid_attach(GTK_GRID(table), ctrl->track, 2, 0, 1, 1);
     g_signal_connect(ctrl->track, "toggled", G_CALLBACK(track_toggle_cb),
+                     ctrl);
+
+    /* Home button */
+    ctrl->home = gtk_button_new_with_label(_("Home"));
+    gtk_widget_set_tooltip_text(ctrl->home,
+                                _
+                                ("Move the rotor to the home position"));
+    gtk_grid_attach(GTK_GRID(table), ctrl->home, 3, 0, 1, 1);
+    g_signal_connect(ctrl->home, "clicked", G_CALLBACK(home_pushed_cb),
                      ctrl);
 
     /* Azimuth */
