@@ -69,6 +69,7 @@
 /* radio control functions */
 static void     exec_rx_cycle(GtkRigCtrl * ctrl);
 static void     exec_tx_cycle(GtkRigCtrl * ctrl);
+static void     exec_RIT_cycle(GtkRigCtrl * ctrl);
 static void     exec_trx_cycle(GtkRigCtrl * ctrl);
 static void     exec_toggle_cycle(GtkRigCtrl * ctrl);
 static void     exec_toggle_tx_cycle(GtkRigCtrl * ctrl);
@@ -77,7 +78,9 @@ static void     exec_duplex_tx_cycle(GtkRigCtrl * ctrl);
 static void     exec_dual_rig_cycle(GtkRigCtrl * ctrl);
 static gboolean check_aos_los(GtkRigCtrl * ctrl);
 static gboolean set_freq_simplex(GtkRigCtrl * ctrl, gint sock, gdouble freq);
+static gboolean set_rit(GtkRigCtrl * ctrl, gint sock, gint rit);
 static gboolean get_freq_simplex(GtkRigCtrl * ctrl, gint sock, gdouble * freq);
+static gboolean get_RIT(GtkRigCtrl * ctrl, gint sock, gint * rit);
 static gboolean set_freq_toggle(GtkRigCtrl * ctrl, gint sock, gdouble freq);
 static gboolean set_toggle(GtkRigCtrl * ctrl, gint sock);
 static gboolean unset_toggle(GtkRigCtrl * ctrl, gint sock);
@@ -171,6 +174,8 @@ static void gtk_rig_ctrl_init(GtkRigCtrl * ctrl,
     g_mutex_init(&(ctrl->busy));
     ctrl->engaged = FALSE;
     ctrl->delay = 1000;
+    ctrl->RIT = 0;
+    ctrl->RITChanged = FALSE;
     ctrl->timerid = 0;
     ctrl->errcnt = 0;
     ctrl->lastrxptt = FALSE;
@@ -271,6 +276,10 @@ void gtk_rig_ctrl_update(GtkRigCtrl * ctrl, gdouble t)
     gchar          *buff;
 
     g_mutex_lock(&ctrl->rig_ctrl_updatelock);
+
+    if (ctrl) {
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(ctrl->RITSpin), (gdouble)ctrl->RIT);
+    }
 
     if (ctrl->target)
     {
@@ -434,6 +443,20 @@ static void uplink_changed_cb(GtkFreqKnob * knob, gpointer data)
         track_uplink(ctrl);
 }
 
+/* Called when the user changes the value of the RIT */
+static void RIT_changed_cb(GtkSpinButton * spin, gpointer data)
+{
+    GtkRigCtrl     *ctrl = GTK_RIG_CTRL(data);
+    gint readRIT = (guint) gtk_spin_button_get_value(spin);
+
+    if (ctrl->conf) {
+        if (readRIT != ctrl->RIT)
+            ctrl->RITChanged = TRUE;
+
+        ctrl->RIT = (guint) gtk_spin_button_get_value(spin);
+    }
+}
+
 /*
  * Create freq control widgets for downlink.
  *
@@ -446,8 +469,14 @@ static GtkWidget *create_downlink_widgets(GtkRigCtrl * ctrl)
 {
     GtkWidget      *frame;
     GtkWidget      *vbox;
-    GtkWidget      *hbox1, *hbox2;
+    GtkWidget      *hbox1, *hbox2, *hbox3;
     GtkWidget      *label;
+    GtkWidget      *table;
+
+    table = gtk_grid_new();
+    gtk_container_set_border_width(GTK_CONTAINER(table), 5);
+    gtk_grid_set_column_spacing(GTK_GRID(table), 5);
+    gtk_grid_set_row_spacing(GTK_GRID(table), 5);
 
     label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(label), _("<b> Downlink </b>"));
@@ -459,6 +488,7 @@ static GtkWidget *create_downlink_widgets(GtkRigCtrl * ctrl)
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 10);
     hbox1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     hbox2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    hbox3 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 
     /* satellite downlink frequency */
     ctrl->SatFreqDown = gtk_freq_knob_new(145890000.0, TRUE);
@@ -486,19 +516,40 @@ static GtkWidget *create_downlink_widgets(GtkRigCtrl * ctrl)
     g_object_set(label, "xalign", 1.0f, "yalign", 0.5f, NULL);
     gtk_box_pack_end(GTK_BOX(hbox1), label, FALSE, FALSE, 0);
 
+    /* Radio RIT */
+    label = gtk_label_new(_("RIT:"));
+    g_object_set(label, "xalign", 1.0f, "yalign", 0.5f, NULL);
+    gtk_box_pack_start(GTK_BOX(hbox2), label, FALSE, FALSE, 0);
+
+    ctrl->RITSpin = gtk_spin_button_new_with_range(-100000000, 100000000, 10);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(ctrl->RITSpin), 0);
+    gtk_spin_button_set_digits(GTK_SPIN_BUTTON(ctrl->RITSpin), 0);
+    gtk_widget_set_tooltip_text(ctrl->RITSpin,
+                                _("This parameter controls the rig's RIT"));
+    g_signal_connect(ctrl->RITSpin, "value-changed",
+                     G_CALLBACK(RIT_changed_cb), ctrl);
+    g_object_set(ctrl->RITSpin, "xalign", 1.0f, "yalign", 0.5f, NULL);
+    gtk_box_pack_start(GTK_BOX(hbox2), ctrl->RITSpin, FALSE, FALSE, 0);
+
+    label = gtk_label_new(_("Hz"));
+    g_object_set(label, "xalign", 1.0f, "yalign", 0.5f, NULL);
+    gtk_box_pack_start(GTK_BOX(hbox2), label, FALSE, FALSE, 0);
+
     /* Radio downlink frequency */
     label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(label),
                          "<span size='large'><b>Radio:</b></span>");
     g_object_set(label, "xalign", 0.5f, "yalign", 1.0f, NULL);
-    gtk_box_pack_start(GTK_BOX(hbox2), label, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox3), label, TRUE, TRUE, 0);
     ctrl->RigFreqDown = gtk_freq_knob_new(145890000.0, FALSE);
-    gtk_box_pack_start(GTK_BOX(hbox2), ctrl->RigFreqDown, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox3), ctrl->RigFreqDown, TRUE, TRUE, 0);
 
     /* finish packing ... */
     gtk_box_pack_start(GTK_BOX(vbox), hbox1, TRUE, TRUE, 10);
     gtk_box_pack_start(GTK_BOX(vbox), hbox2, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), hbox3, TRUE, TRUE, 0);
     gtk_container_add(GTK_CONTAINER(frame), vbox);
+    gtk_container_add(GTK_CONTAINER(frame), table);
 
     return frame;
 }
@@ -1576,6 +1627,10 @@ static void exec_rx_cycle(GtkRigCtrl * ctrl)
     if (ctrl->engaged && ctrl->conf->ptt)
         ptt = get_ptt(ctrl, ctrl->sock);
 
+    if (ctrl->engaged) {
+        exec_RIT_cycle(ctrl);
+    }
+
     /* Dial feedback:
        If radio device is engaged read frequency from radio and compare it to the
        last set frequency. If different, it means that user has changed frequency
@@ -1688,6 +1743,21 @@ static void exec_rx_cycle(GtkRigCtrl * ctrl)
        feedback during TX to RX transitions.
      */
     ctrl->lastrxptt = ptt;
+}
+
+static void exec_RIT_cycle(GtkRigCtrl * ctrl)
+{
+    /* get engaged status */
+    if (ctrl->engaged) {
+        if (ctrl->RITChanged) {
+            set_rit(ctrl, ctrl->sock, ctrl->RIT);
+        }
+        else {
+            get_RIT(ctrl, ctrl->sock, &ctrl->RIT);
+        }
+
+        ctrl->RITChanged = FALSE;
+    }
 }
 
 static void exec_tx_cycle(GtkRigCtrl * ctrl)
@@ -2385,6 +2455,28 @@ static gboolean set_freq_simplex(GtkRigCtrl * ctrl, gint sock, gdouble freq)
     return (check_set_response(buffback, retcode, __func__));
 }
 
+/*
+ * Set the RIT
+ *
+ * Returns TRUE if the operation was successful, FALSE otherwise
+ */
+static gboolean set_rit(GtkRigCtrl * ctrl, gint sock, gint rit)
+{
+    gchar          *buff;
+    gchar           buffback[128];
+    gboolean        retcode;
+
+    buff = g_strdup_printf("J %i\x0a", rit);
+    retcode = send_rigctld_command(ctrl, sock, buff, buffback, 128);
+    g_free(buff);
+
+    sat_log_log(SAT_LOG_LEVEL_INFO,
+                _("%s:%s: %s"),
+                __FILE__, __func__, buff);
+
+    return (check_set_response(buffback, retcode, __func__));
+}
+
 
 /*
  * Set frequency in toggle mode
@@ -2463,6 +2555,40 @@ static gboolean get_freq_simplex(GtkRigCtrl * ctrl, gint sock, gdouble * freq)
         vbuff = g_strsplit(buffback, "\n", 3);
         if (vbuff[0])
             *freq = g_ascii_strtod(vbuff[0], NULL);
+        else
+            retval = FALSE;
+        g_strfreev(vbuff);
+    }
+    else
+    {
+        retval = FALSE;
+    }
+
+    g_free(buff);
+    return retval;
+}
+
+/*
+ * Get rit
+ *
+ * Returns TRUE if the operation was successful, FALSE otherwise
+ */
+static gboolean get_RIT(GtkRigCtrl * ctrl, gint sock, gint * rit)
+{
+    gchar          *buff, **vbuff;
+    gchar           buffback[128];
+    gboolean        retcode;
+    gboolean        retval = TRUE;
+
+    buff = g_strdup_printf("j\x0a");
+    retcode = send_rigctld_command(ctrl, sock, buff, buffback, 128);
+    retcode = check_get_response(buffback, retcode, __func__);
+    if (retcode)
+    {
+        vbuff = g_strsplit(buffback, "\n", 3);
+        if (vbuff[0]) {
+            *rit = g_ascii_strtoll(vbuff[0], NULL, 10);
+        }
         else
             retval = FALSE;
         g_strfreev(vbuff);

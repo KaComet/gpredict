@@ -49,6 +49,7 @@ struct _gtk_rig_ctrl {
     GtkWidget      *DevSel2;    /*!< Second device selector */
     GtkWidget      *LockBut;
     GtkWidget      *cycle_spin;      /*!< Update timer cycle */
+    GtkWidget      *RITSpin;       /*!< Update RIT*/
 
     radio_conf_t   *conf;       /*!< Radio configuration */
     radio_conf_t   *conf2;      /*!< Secondary radio configuration */
@@ -64,6 +65,8 @@ struct _gtk_rig_ctrl {
     double          prev_ele;   /*!< Previous elevation (used for AOS/LOS signalling) */
 
     guint           delay;      /*!< Timeout delay. */
+    gint            RIT;        /*!< RIT, HZ. */
+    gboolean        RITChanged; /*!< Flag set when RIT has been changed in software */
     guint           timerid;    /*!< Timer ID */
 
     gboolean        tracking;   /*!< Flag set when we are tracking a target. */
